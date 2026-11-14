@@ -275,3 +275,9 @@ retraining.
 - Neely SP notation: Glenn Neely, *Mastering Elliott Wave* (1990) — proprietary notation; the
   labels used here are the ones emitted by the production data source.
 - Conversion/quantization: [llama.cpp](https://github.com/ggml-org/llama.cpp) (`ggml-org`).
+
+---
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
