@@ -1,0 +1,36 @@
+# ─── Large / derived artifacts (see README "Large artifacts") ──────────────────
+# Trained models, quantized weights and training outputs are not committed.
+# GitHub rejects files > 100 MB; these are 4–8 GB each. Regenerate with the
+# pipeline in README.md / PIPELINE.md.
+merged-*/
+*.gguf
+output/
+
+# Rendered datasets (derived from sft-dataset-*.jsonl; the train split is > 100 MB)
+sp-systemone-*.jsonl
+
+# ─── Third-party / environment (clone & install locally, see README Setup) ─────
+llama.cpp/
+venv/
+.cache/
+.env
+.env.*
+
+# ─── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ─── Logs / scratch ────────────────────────────────────────────────────────────
+*.log
+nohup.out
+*.tmp
+*.swp
+
+# ─── OS / editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

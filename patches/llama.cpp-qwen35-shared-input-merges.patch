@@ -1,0 +1,19 @@
+diff --git a/conversion/qwen.py b/conversion/qwen.py
+index 3765354..52edb74 100644
+--- a/conversion/qwen.py
++++ b/conversion/qwen.py
+@@ -736,10 +736,10 @@ class _Qwen35MRopeMixin:
+ class Qwen3_5TextModel(_Qwen35MRopeMixin, _LinearAttentionVReorderBase):
+     model_arch = gguf.MODEL_ARCH.QWEN35
+ 
+-    _SHARED_INPUT_MERGES = (
+-        (gguf.MODEL_TENSOR.ATTN_QKV_GATE,      (gguf.MODEL_TENSOR.ATTN_QKV, gguf.MODEL_TENSOR.ATTN_GATE), True),
+-        (gguf.MODEL_TENSOR.SSM_BETA_ALPHA_CAT, (gguf.MODEL_TENSOR.SSM_BETA, gguf.MODEL_TENSOR.SSM_ALPHA), True),
+-    )
++    # Disable shared-input merges so the GGUF keeps separate attn_qkv/attn_gate and
++    # ssm_beta/ssm_alpha tensors (matches the deployed tev1 GGUF layout that the
++    # llama.cpp server loader expects).
++    _SHARED_INPUT_MERGES = ()
+ 
+     def __init__(self, dir_model, *args, **kwargs):
+         # Inner TextModel does not own mtp.*. Set no_mtp before mixin bumps block_count.
