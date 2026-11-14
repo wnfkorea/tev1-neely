@@ -1,0 +1,6 @@
+FROM /home/wnf/tev1-finetune/tev1-neely-sp-bf16-q8_0-decision.gguf
+
+PARAMETER num_ctx 4096
+PARAMETER temperature 0
+
+TEMPLATE "{{ .Prompt }}"
