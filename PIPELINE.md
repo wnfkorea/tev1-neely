@@ -1,14 +1,16 @@
 # Tev1 → Neely (SP) decision model — fine-tune & Ollama registration
 
 > This is the **detailed pipeline / provenance** document. For the repository overview and
-> setup, see [`README.md`](README.md).
+> setup, see [`README.md`](README.md); for a hands-on follow-along walkthrough, see
+> [`docs/LECTURE.md`](docs/LECTURE.md).
 
 How the `tev1-neely` System-1 **decision model** was produced: a **bf16 LoRA** fine-tune
 of `togethercomputer/Tev1-4B-experimental` on a synthetic Neely wave-count (SP symbol)
 dataset, merged to bf16, exported to GGUF, given `pplx-decider` decision metadata,
 quantized to Q8_0, and registered with Ollama.
 
-The training data is **synthesised** by `stock-twin-kr/scripts/generate-sft-dataset.ts`,
+The training data is **synthesised** by `generate_sft_dataset.py` (a standalone, stdlib-only
+port of the original `stock-twin-kr/scripts/generate-sft-dataset.ts`),
 reweighted to the **measured** real SP prior (`SP_REAL_DISTRIBUTION.md`), and every
 `Invalid_Neely_Rule_Violation` label is checked by a generation-time audit gate
 (`audit_invalid_labels.py`). See §2–§2.2.
@@ -26,7 +28,7 @@ The model answers the **SP symbol** question of the Elliott-wave pipeline via Ol
 | HF cache snapshot | `~/.cache/huggingface/hub/models--togethercomputer--Tev1-4B-experimental/snapshots/0b7becf017daa0e5eb222f8ce7483c8c8259c52f` |
 | Python env | `~/tev1-finetune/venv` (torch, transformers, peft, bitsandbytes, datasets, triton, fla, gguf, numpy, tqdm) |
 | llama.cpp | `~/tev1-finetune/llama.cpp` — used for `convert_hf_to_gguf.py` and the `gguf-py` package |
-| Data generator | `stock-twin-kr/scripts/generate-sft-dataset.ts` (run with the repo's `node_modules/.bin/ts-node`); CPU only |
+| Data generator | `generate_sft_dataset.py` — standalone, stdlib-only (no Node.js); CPU only |
 | Real SP prior | `SP_REAL_DISTRIBUTION.md` + `sp-real-distribution.json` (measured from the Kiwoom broker `macro_wave` via `measure_sp_distribution.py`) |
 | GPU | bf16 LoRA training on the 24 GB 4090; merge/convert/quantize are CPU-friendly. Torch device order is `CUDA_VISIBLE_DEVICES=0` → **4090**, `=1` → 4060 Ti (opposite of `nvidia-smi`). |
 
@@ -47,7 +49,7 @@ class Qwen3_5TextModel(_Qwen35MRopeMixin, _LinearAttentionVReorderBase):
 ## 1. Pipeline overview
 
 ```
-generate-sft-dataset.ts ─→ sft-dataset-train4.jsonl / sft-dataset-heldout4.jsonl
+generate_sft_dataset.py ──→ sft-dataset-train4.jsonl / sft-dataset-heldout4.jsonl
                             │  (label-first, measured real prior; Invalid gated)
                             └─ build_sp_systemone.py ─→ sp-systemone-{train,heldout}.jsonl
 
@@ -67,14 +69,14 @@ tev1-neely-sp-bf16-v4-q8_0-decision.gguf ─ ollama create -f Modelfile-tev1-nee
 
 ## 2. Generate the SFT dataset
 
-The SFT dataset is **synthetic**, produced by `stock-twin-kr/scripts/generate-sft-dataset.ts`:
+The SFT dataset is **synthetic**, produced by the standalone `generate_sft_dataset.py`
+(stdlib-only; a faithful port of the original `stock-twin-kr/scripts/generate-sft-dataset.ts`
+— the same seed reproduces the committed files byte for byte):
 
 ```bash
-cd ~/Develop/kil2_container.root/stock-twin-kr
-SFT_OUTPUT=~/tev1-finetune/sft-dataset-train4.jsonl \
-  node_modules/.bin/ts-node -r tsconfig-paths/register scripts/generate-sft-dataset.ts 20000 20261113
-SFT_OUTPUT=~/tev1-finetune/sft-dataset-heldout4.jsonl \
-  node_modules/.bin/ts-node -r tsconfig-paths/register scripts/generate-sft-dataset.ts 3000 424242
+cd ~/tev1-finetune
+./venv/bin/python generate_sft_dataset.py --count 20000 --seed 20261113 --out sft-dataset-train4.jsonl
+./venv/bin/python generate_sft_dataset.py --count 3000  --seed 424242   --out sft-dataset-heldout4.jsonl
 ```
 
 Each row is `{state, question, answer}`, where `answer` is one of the 10 SP keys and `state`
@@ -326,10 +328,13 @@ Calls go through `ollamaClient.systemOne(model, state, questions, timeoutMs)`
 ```
 README.md                     repository overview / setup
 PIPELINE.md                   this document (detailed pipeline)
+docs/LECTURE.md               hands-on follow-along tutorial (Korean)
+docs/sp-wave-example.png      example chart analysed with the deployed model
 requirements.txt              python environment
 patches/
   llama.cpp-qwen35-shared-input-merges.patch   required llama.cpp patch (§0)
 
+generate_sft_dataset.py       standalone synthetic SFT generator (label-first, Invalid gate)
 build_sp_systemone.py         dataset builder (SFT → systemone)
 finetune_tev1_sp.py           LoRA training (bf16; qlora legacy)
 merge_tev1_sp.py              LoRA merge → HF bf16
@@ -341,9 +346,6 @@ systemone-template.txt        systemone chat template (injected into the GGUF)
 measure_sp_distribution.py    measures the real SP prior from Kiwoom macro_wave
 SP_REAL_DISTRIBUTION.md       measured real SP prior (reweighting target)
 sp-real-distribution.json     raw measured prior
-
-(../stock-twin-kr/scripts/)
-generate-sft-dataset.ts       synthetic SFT generator (label-first, Invalid gate)
 
 sft-dataset-train4.jsonl      source SFT (20k, seed 20261113)
 sft-dataset-heldout4.jsonl    source held-out (3k, seed 424242)
@@ -357,6 +359,10 @@ tev1-neely-sp-bf16-v4-q8_0-decision.gguf   deployed GGUF (Q8_0)
 llama.cpp/                    converter + gguf-py (cloned + patched; not committed)
 venv/                         python environment (not committed)
 ```
+
+> The standalone `generate_sft_dataset.py` is a port of the original TypeScript generator
+> (`stock-twin-kr/scripts/generate-sft-dataset.ts`); the two produce **identical** output for
+> the same seed.
 
 > `.gitignore`d (large / derived, regenerate per README): `llama.cpp/`, `venv/`, `output/`,
 > `merged-*/`, `*.gguf`, `sp-systemone-*.jsonl`.

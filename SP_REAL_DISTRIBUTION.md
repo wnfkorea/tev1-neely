@@ -4,7 +4,8 @@ Date: 2026-11-13
 Author: analysis for the Tev1 SP decision model (`tev1-neely:latest`)
 
 > **Status (2026-11-14): the distribution prior is applied.** It now drives the label-first
-> reweighting in `stock-twin-kr/scripts/generate-sft-dataset.ts`. The `Invalid` problem
+> reweighting in `generate_sft_dataset.py` (a standalone port of the original
+> `stock-twin-kr/scripts/generate-sft-dataset.ts`). The `Invalid` problem
 > (§4, point 1) was fixed and audited (`audit_invalid_labels.py`, `PIPELINE.md` §2.1). The
 > **task-mix** mismatch (§5) is still out of scope (chosen scope: reweight the synthetic
 > generator only, no real-data training pipeline). See `ACCURACY_ANALYSIS.md` §0.
@@ -208,7 +209,7 @@ D/W/M sweep took ~110 s).
 **Fallback — reweight the synthetic prior** if you want to keep the synthetic
 generator: drop `INVALID_WEIGHT` from 35 → ~2–5% (or 0), and rebalance so the
 valid-label shares track §3.2 (notably raise `:5`, `:s5`, `x:c3`; lower `:c3`,
-`:L5`, `b:c3`). `scripts/generate-sft-dataset.ts` already supports weights.
+`:L5`, `b:c3`). `generate_sft_dataset.py` already supports weights.
 
 **Regardless of choice:**
 

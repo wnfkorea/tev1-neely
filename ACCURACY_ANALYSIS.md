@@ -173,9 +173,8 @@ nf4 양자화 표현에 맞춰져 있어, 배포 base(bf16)에서 어긋난다.
 제너레이터가 seed 기반이므로 **새 seed로 별도 생성**하면 진짜 미학습 held-out이 된다:
 
 ```bash
-cd /home/wnf/Develop/kil2_container.root/stock-twin-kr
-SFT_OUTPUT=/home/wnf/tev1-finetune/sft-dataset-heldout2.jsonl \
-  npx ts-node -r tsconfig-paths/register scripts/generate-sft-dataset.ts 3000 424242
+cd ~/tev1-neely
+./venv/bin/python generate_sft_dataset.py --count 3000 --seed 424242 --out sft-dataset-heldout4.jsonl
 # 학습에는 절대 넣지 않는다. (또는 20k를 90/10 stratified split)
 ```
 
@@ -240,7 +239,7 @@ CUDA_VISIBLE_DEVICES=0 ./venv/bin/python finetune_tev1_sp.py \
 1. **과제가 MLP 수준으로 쉽다.** 24-feature MLP가 99.9%라면, 이 *합성* 과제 한정으로는
    4B LLM이 과합니다. Tev1을 decision 엔드포인트로 유지해야 하는 제약이 아니라면,
    소형 분류기/소형 LLM이 더 정확·저렴합니다.
-2. **합성 → 실데이터 도메인 갭은 미측정.** 데이터셋은 `scripts/generate-sft-dataset.ts`가
+2. **합성 → 실데이터 도메인 갭은 미측정.** 데이터셋은 `generate_sft_dataset.py`가
    Neely 규칙으로 *생성*한 합성 데이터다(라벨이 feature의 결정적 함수). 진짜 정확도는
    실 시장 monowave + 전문가 Neely 라벨로 측정해야 한다. 다음 단계로 실데이터 라벨링
    파이프라인을 권장.

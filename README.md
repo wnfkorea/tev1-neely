@@ -19,7 +19,9 @@ one of ten fixed Neely SP symbols:
   `ollama create`
 - **Result** — **1.000** accuracy on a disjoint, unseen test set
 
-The detailed, step-by-step pipeline and provenance live in [`PIPELINE.md`](PIPELINE.md).
+**New here?** Start with the hands-on tutorial **[`docs/LECTURE.md`](docs/LECTURE.md)** — a
+follow-along lecture that walks the whole pipeline from a bare machine to a deployed Ollama
+model. The detailed pipeline and provenance live in [`PIPELINE.md`](PIPELINE.md).
 
 ---
 
@@ -47,7 +49,7 @@ labels: [`SP_REAL_DISTRIBUTION.md`](SP_REAL_DISTRIBUTION.md).
 ## Pipeline at a glance
 
 ```
-stock-twin-kr/scripts/generate-sft-dataset.ts   (synthetic, label-first, Invalid-gated)
+generate_sft_dataset.py                         (synthetic, label-first, Invalid-gated)
       └─→ sft-dataset-train4.jsonl / sft-dataset-heldout4.jsonl
               └─ build_sp_systemone.py ─→ sp-systemone-{train,heldout}.jsonl
                       └─ finetune_tev1_sp.py ─→ output/tev1-sp-lora-v4        (bf16 LoRA)
@@ -68,6 +70,8 @@ stock-twin-kr/scripts/generate-sft-dataset.ts   (synthetic, label-first, Invalid
 ```
 README.md                       this file
 PIPELINE.md                     detailed fine-tune → GGUF → Ollama pipeline
+docs/LECTURE.md                 hands-on tutorial (Korean) — follow along end to end
+docs/sp-wave-example.png        example chart analysed with the deployed model
 ACCURACY_ANALYSIS.md            accuracy analysis (before / after the fixes)
 SP_REAL_DISTRIBUTION.md         measured real SP prior (reweighting target)
 sp-real-distribution.json       raw measured prior
@@ -76,6 +80,7 @@ requirements.txt                Python environment
 patches/
   llama.cpp-qwen35-shared-input-merges.patch   required llama.cpp patch (see Setup)
 
+generate_sft_dataset.py         standalone synthetic SFT generator (stdlib only, no Node)
 finetune_tev1_sp.py             bf16 LoRA training (--precision bf16 | qlora)
 build_sp_systemone.py           SFT rows → systemone decision records
 merge_tev1_sp.py                LoRA merge → standalone HF bf16
@@ -143,9 +148,11 @@ scripts load it by repo id). The training/eval scripts use the HF cache directly
 
 ### 4. Dataset generator
 
-The SFT data is produced by `scripts/generate-sft-dataset.ts` in the **`stock-twin-kr`**
-repository (run with that repo's `node_modules/.bin/ts-node`; CPU only). It is *not* included
-here — see [`PIPELINE.md`](PIPELINE.md) §2 for the exact invocation.
+`generate_sft_dataset.py` is a **standalone, dependency-free** (stdlib-only) generator — no
+Node.js and no other repository required. It is a faithful port of the original TypeScript
+generator (`stock-twin-kr/scripts/generate-sft-dataset.ts`): given the same seed it reproduces
+the committed `sft-dataset-*.jsonl` **byte for byte** (verified for both splits). See
+[`PIPELINE.md`](PIPELINE.md) §2 for the algorithm and the measured prior it reweights to.
 
 ---
 
@@ -154,11 +161,9 @@ here — see [`PIPELINE.md`](PIPELINE.md) §2 for the exact invocation.
 ```bash
 cd ~/tev1-finetune
 
-# 1) generate the synthetic SFT data (from stock-twin-kr)
-SFT_OUTPUT=$PWD/sft-dataset-train4.jsonl \
-  node_modules/.bin/ts-node -r tsconfig-paths/register scripts/generate-sft-dataset.ts 20000 20261113
-SFT_OUTPUT=$PWD/sft-dataset-heldout4.jsonl \
-  node_modules/.bin/ts-node -r tsconfig-paths/register scripts/generate-sft-dataset.ts 3000 424242
+# 1) generate the synthetic SFT data (standalone generator, no Node.js needed)
+./venv/bin/python generate_sft_dataset.py --count 20000 --seed 20261113 --out sft-dataset-train4.jsonl
+./venv/bin/python generate_sft_dataset.py --count 3000  --seed 424242   --out sft-dataset-heldout4.jsonl
 
 # 2) build systemone decision records + audit the Invalid labels
 ./venv/bin/python build_sp_systemone.py \
@@ -263,6 +268,7 @@ retraining.
 
 | Document | Contents |
 |---|---|
+| [`docs/LECTURE.md`](docs/LECTURE.md) | hands-on follow-along tutorial (Korean) — start here |
 | [`PIPELINE.md`](PIPELINE.md) | full pipeline, exact commands, reproduction inventory |
 | [`ACCURACY_ANALYSIS.md`](ACCURACY_ANALYSIS.md) | accuracy analysis and the fixes that took it to 1.000 |
 | [`SP_REAL_DISTRIBUTION.md`](SP_REAL_DISTRIBUTION.md) | measured real-world SP prior + Neely literature review |
