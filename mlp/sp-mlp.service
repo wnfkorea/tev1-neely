@@ -1,0 +1,17 @@
+[Unit]
+Description=SP decision MLP server (Tev1-4B distilled, /v1/systemone drop-in)
+After=network.target
+
+[Service]
+Type=simple
+User=wnf
+WorkingDirectory=/home/wnf/tev1-finetune
+ExecStart=/home/wnf/tev1-finetune/venv/bin/python /home/wnf/tev1-finetune/mlp/serve_mlp.py --model /home/wnf/tev1-finetune/mlp/sp_mlp.pt --host 0.0.0.0 --port 8095
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+# CPU affinity: keep off the GPU host cores if needed (optional)
+# Nice=5
+
+[Install]
+WantedBy=multi-user.target
