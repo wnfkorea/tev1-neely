@@ -1,7 +1,23 @@
 # SP decision MLP (Tev1-4B decision model 증류)
 
 Tev1 SP decision model(4B LLM)의 결정을 **CPU MLP**로 증류한 프로덕션 모델.
-Ollama / llama.cpp / GPU 없이, feature 벡터 → SP 문자 분류를 **~1.6ms/req**로 처리한다.
+Ollama / llama.cpp / GPU없이, feature 벡터 → SP 문자 분류를 **~1.6ms/req**로 처리한다.
+
+## 멀티마켓 모델 (프로덕션)
+
+`sp_mlp_multi.pt`는 **한국장(주식/코인) + 미국장(주식/코인)** 전체를 커버하는 모델이다.
+과제(SP 분류)는 시장 독립적이고, 시장별 차이는 **feature 분포**(변동폭/거래 세션/가격대)뿐이므로,
+시장별 프로파일로 데이터 생성기를 확장(`generate_sft_dataset_multi.py`)해 재학습했다.
+
+| 시장 프로파일 | length_factor | base_time | base_price |
+|--------------|---------------|-----------|------------|
+| `kr_stock` (KOSPI/KOSDAQ) | 5–15% | 3–8 bars | 5k–50k |
+| `us_stock` (S&P/Nasdaq) | 3–10% | 3–8 bars | 10–500 |
+| `coin` (crypto 24/7) | 10–40% | 3–30 bars | 100–50k |
+
+- 학습: 50k (3시장 혼합), 평가: 9k (3시장 × 3k)
+- **시장별 held-out 정확도 전부 1.0000** (kr 3000/3000, us 3000/3000, coin 3000/3000)
+- `sp_mlp.pt`(한국장 전용)는 레거시 — 프로덕션은 `sp_mlp_multi.pt` 사용
 
 ## 왜 MLP인가
 
@@ -34,32 +50,50 @@ held-out 3000개에서 **3000/3000 = 1.0000** (10개 클래스 전부 recall 1.0
 
 ```
 mlp/
-  train_mlp.py    MLP 학습 (sp-systemone-train.jsonl → sp_mlp.pt)
-  serve_mlp.py    HTTP 서버 (/v1/systemone 드롭인 교체)
-  eval_mlp.py     held-out 평가 + 지연 측정
-  sp_mlp.pt       학습된 모델 (state_dict + mu/sd + keys + feature order)
-  README.md       이 문서
+  train_mlp.py          MLP 학습
+  serve_mlp.py          HTTP 서버 (/v1/systemone 드롭인 교체)
+  eval_mlp.py           held-out 평가 + 지연 측정
+  sp_mlp.pt             한국장 전용 모델 (레거시)
+  sp_mlp_multi.pt       멀티마켓 모델 (프로덕션 — 한국/미국 주식+코인)
+  sp-mlp.service        systemd 유닛 (0.0.0.0:8095, sp_mlp_multi.pt)
+  README.md             이 문서
+
+generate_sft_dataset_multi.py   멀티마켓 데이터 생성기 (시장 프로파일)
+sp-systemone-multi-train.jsonl      50k 학습셋 (3시장 혼합)
+sp-systemone-multi-heldout-*.jsonl  시장별 3k held-out
 ```
 
 ## 재현
 
 ```bash
 cd ~/tev1-finetune
-# 1) 학습 (20k train, 3k held-out)
-./venv/bin/python mlp/train_mlp.py \
-  --train sp-systemone-train.jsonl \
-  --heldout sp-systemone-heldout.jsonl \
-  --out mlp/sp_mlp.pt
+# 1) 멀티마켓 데이터 생성 (3시장 혼합)
+./venv/bin/python generate_sft_dataset_multi.py --count 50000 --seed 20261118 \
+  --out sp-systemone-multi-train.jsonl
+for m in kr_stock us_stock coin; do
+  ./venv/bin/python generate_sft_dataset_multi.py --count 3000 --seed 424243 \
+    --market $m --out sp-systemone-multi-heldout-$m.jsonl
+done
 
-# 2) 평가 (held-out 정확도 + 지연)
-./venv/bin/python mlp/eval_mlp.py --model mlp/sp_mlp.pt --heldout sp-systemone-heldout.jsonl
+# 2) 학습 (50k train, 9k held-out)
+cat sp-systemone-multi-heldout-*.jsonl > sp-systemone-multi-heldout.jsonl
+./venv/bin/python mlp/train_mlp.py \
+  --train sp-systemone-multi-train.jsonl \
+  --heldout sp-systemone-multi-heldout.jsonl \
+  --out mlp/sp_mlp_multi.pt
+
+# 3) 평가 (시장별 held-out 정확도 + 지연)
+for m in kr_stock us_stock coin; do
+  ./venv/bin/python mlp/eval_mlp.py --model mlp/sp_mlp_multi.pt \
+    --heldout sp-systemone-multi-heldout-$m.jsonl
+done
 ```
 
 ## 서버 기동
 
 ```bash
 cd ~/tev1-finetune
-./venv/bin/python mlp/serve_mlp.py --model mlp/sp_mlp.pt --host 0.0.0.0 --port 8095
+./venv/bin/python mlp/serve_mlp.py --model mlp/sp_mlp_multi.pt --host 0.0.0.0 --port 8095
 ```
 
 - `GET /health` → `{"status":"ok"}`

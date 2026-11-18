@@ -72,7 +72,7 @@ llama-server host로 바꾸고 `/v1/systemone`을 그대로 쓰면 된다 (엔�
 ## 방법 5: MLP 증류 (프로덕션 완성 — `mlp/`)
 
 Tev1 SP 태스크는 **36차원 monowave feature → 10개 SP 문자 분류**. 4B LLM이 과잉이고,
-작은 MLP(512-512-10, ~1.4M 파라미터)가 held-out 3000에서 **1.0000**을 낸다.
+작은 MLP(512-512-10, ~1.4M 파라미터)가 held-out에서 **1.0000**을 낸다.
 
 - **서버**: `mlp/serve_mlp.py` — Ollama `/v1/systemone`과 **동일 요청/응답 형식** (드롭인 교체)
 - **정확도**: held-out 3000/3000 = 1.0000 (10개 클래스 전부 recall 1.000)
@@ -80,6 +80,26 @@ Tev1 SP 태스크는 **36차원 monowave feature → 10개 SP 문자 분류**. 4
 - **연동**: `sp.symbolModel`을 MLP 서버 host로 변경 (클라이언트 코드 변경 없음)
 
 자세한 내용: [`mlp/README.md`](../mlp/README.md)
+
+## 방법 6: 멀티마켓 MLP (한국/미국 주식+코인 — 프로덕션)
+
+SP 분류는 **시장 독립적**이다 (같은 36차원 feature, 같은 10 SP 기호, 같은 Neely 규칙).
+시장별 차이는 **feature 분포**(변동폭/거래 세션/가격대)뿐이므로, 시장별 프로파일로
+데이터 생성기를 확장(`generate_sft_dataset_multi.py`)해 재학습하면 **단일 MLP**가
+모든 시장을 커버한다.
+
+| 시장 프로파일 | length_factor | base_time | base_price |
+|--------------|---------------|-----------|------------|
+| `kr_stock` (KOSPI/KOSDAQ) | 5–15% | 3–8 bars | 5k–50k |
+| `us_stock` (S&P/Nasdaq) | 3–10% | 3–8 bars | 10–500 |
+| `coin` (crypto 24/7) | 10–40% | 3–30 bars | 100–50k |
+
+- 학습 50k (3시장 혼합) / 평가 9k (3시장 × 3k)
+- **시장별 held-out 정확도 전부 1.0000** (kr 3000/3000, us 3000/3000, coin 3000/3000)
+- 프로덕션 모델: `mlp/sp_mlp_multi.pt` (서버/서비스가 이 모델을 사용)
+
+**교훈**: 단일 시장 분포로 학습한 MLP는 그 시장 밖 feature(예: 코인의 큰 변동폭)에서
+외삽해 오답을 낸다. 모든 목표 시장을 feature 분포로 커버해야 한다.
 
 ## A/B 검증 (2026-11-18, held-out 3000 전체, 실서버)
 
