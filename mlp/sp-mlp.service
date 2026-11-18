@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=wnf
 WorkingDirectory=/home/wnf/tev1-finetune
-ExecStart=/home/wnf/tev1-finetune/venv/bin/python /home/wnf/tev1-finetune/mlp/serve_mlp.py --model /home/wnf/tev1-finetune/mlp/sp_mlp_multi.pt --host 0.0.0.0 --port 8095
+ExecStart=/home/wnf/tev1-finetune/venv/bin/python /home/wnf/tev1-finetune/mlp/serve_mlp.py --model /home/wnf/tev1-finetune/mlp/sp_mlp_nolen.pt --host 0.0.0.0 --port 8095
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1

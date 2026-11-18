@@ -101,6 +101,38 @@ SP 분류는 **시장 독립적**이다 (같은 36차원 feature, 같은 10 SP �
 **교훈**: 단일 시장 분포로 학습한 MLP는 그 시장 밖 feature(예: 코인의 큰 변동폭)에서
 외삽해 오답을 낸다. 모든 목표 시장을 feature 분포로 커버해야 한다.
 
+## 방법 7: nolen — shape-invariant MLP (프로덕션, 2026-11-19 승격)
+
+**설계 원리: feature 벡터는 과제의 불변군과 일치해야 한다.**
+
+Neely SP 규칙은 차트 축(시간+가격) 재스케일에 불변 → feature도 재스케일 불변 집합만
+담아야 한다. 정밀한 구분:
+
+| feature | 종류 | 처리 |
+|---------|------|------|
+| `*_length` (5개) | 절대 가격 값 (시장 종속 — coin의 100 ≠ stock의 100) | **제거** |
+| `*_time_bars` (5개) | 캔들 **개수** (시장 종속 아님 — 5개는 5개) | **유지** |
+| ratio / pct / dir / bool | 불변 | 유지 |
+
+- feature: **DIRF(5) + NUMF(9, time_bars 포함) + BOOLF(3)** → null indicator 포함 **27차원**
+- 학습 50k (3시장 혼합) / 평가 9k — **시장별 held-out 전부 1.0000**
+- **ETH 1D 실데이터(87 wave) A/B**:
+
+| 모델 | feature | multi 정합 | p50 |
+|------|---------|-----------|-----|
+| **nolen (프로덕션)** | 27차원 | **80%** (70/87) | 2.3ms |
+| shape (테스트) | 16차원 (time_bars까지 제거) | 70% (61/87) | 2.3ms |
+| multi (레거시) | 36차원 | 100% | 1.8ms |
+| ollama (LLM) | 36차원 LLM | 39% | 200ms |
+
+- `time_bars`(개수) 유지가 70% → 80% 정합을 냄 — **개수는 신호, 절대 가격은 노이즈**
+- **nolen LLM(ollama `tev1-neely-nolen`) vs nolen MLP**: 27.6% — LLM/MLP 결정 과정 분기
+  (LLM끼리 50%, MLP끼리 80% 정합). **MLP가 실데이터에서 더 일관성** 있음.
+- 프로덕션: `mlp/sp_mlp_nolen.pt` (systemd `sp-mlp.service`, 0.0.0.0:8095)
+
+**교훈**: shape-invariant feature는 (1) 시장 독립성, (2) 실데이터 정합, (3) 속도
+(2.3ms)를 동시에 확보. 절대 가격 length 제거가 핵심.
+
 ## A/B 검증 (2026-11-18, held-out 3000 전체, 실서버)
 
 | 서버 | 정확도 | p50 | throughput |
@@ -119,4 +151,5 @@ SP 분류는 **시장 독립적**이다 (같은 36차원 feature, 같은 10 SP �
 - `llama.cpp/build/` — 삭제 (소스 `llama.cpp/`만 유지)
 - `quantize_q4km.py`, Q4_K_M GGUF — 삭제 (정확도 0.920으로 **폐기**)
 - `/tmp` 벤치/로그/ONNX 산출물 — 삭제
-- 프로덕션: `mlp/` (train/serve/eval + `sp_mlp.pt` + `sp-mlp.service`)
+- 프로덕션: `mlp/` (train/serve/eval + `sp_mlp_nolen.pt` + `sp-mlp.service`)
+- 테스트 서버: `127.0.0.1:8096` (shape), `127.0.0.1:8097` (nolen) — 프로덕션 8095와 분리
