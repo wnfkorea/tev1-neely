@@ -134,17 +134,20 @@ cd ~/tev1-finetune
 - `serve_mlp.py`는 artifact에서 feature layout(dirf/numf/boolf)을 읽으므로
   multi/nolen/shape 모델 모두 동일 서버 스크립트로 서빙 가능
 
-## A/B 검증 (2026-11-19, ETH 1D 실데이터 87 wave)
+## A/B 검증 (2026-11-19, ETH 1D + ^KS11 실데이터)
 
 | 모델 | feature | multi 정합 | p50 |
 |------|---------|-----------|-----|
 | **nolen (프로덕션)** | 27차원 (length 제거, time_bars 유지) | **80%** (70/87) | 2.3ms |
 | shape (테스트) | 16차원 (length+time_bars 제거) | 70% (61/87) | 2.3ms |
 | multi (레거시 프로덕션) | 36차원 전체 | 100% (자기 자신) | 1.8ms |
-| ollama (tev1-neely) | 36차원 LLM | 39% (34/87) | 200ms |
+| ollama (tev1-neely, nolen) | 17-key nolen LLM | — | 186ms |
 
-- **nolen LLM(ollama `tev1-neely-nolen`) vs nolen MLP**: 27.6% (24/87) — LLM/MLP 결정 과정 분기
-  (LLM끼리 50%, MLP끼리 80% 정합 — 학습 방식의 본질적 차이)
+- **nolen LLM vs nolen MLP**: **26.4% (23/87)** — ETH와 ^KS11(KOSPI 200)에서 **동일 분기**
+  - nolen-llm p50 186ms vs nolen-mlp p50 2.4ms (~77배)
+  - 분기 원인: **같은 nolen 17-key state를 다르게 읽는 것** (feature 매칭 vs JSON 의미적 추론)
+  - nolen-llm은 `:5`/`Invalid` 과다, nolen-mlp는 `:sL3`/`:c3` 과다
+- **nolen redesign 원리(시장 의존 length 제거)는 MLP/LLM 공통** — `tev1-neely`가 nolen로 승격됨
 - **결론: nolen-MLP가 프로덕션** — shape-invariant + 2.5ms + 실데이터 정합 80%
 
 ## systemd 서비스 (프로덕션)
@@ -192,6 +195,10 @@ systemctl status sp-mlp
 
 - **모델 대체**: "tev1-neely를 쓰는" 게 아니라 **대체**하는 것이다. feature가 앱에서
   이미 생성되므로 연동은 쉽다.
+- **`tev1-neely` 승격 (2026-11-19)**: nolen LLM이 **새 `tev1-neely`**로 등록됨
+  (`ollama cp tev1-neely-nolen:latest tev1-neely:latest`). 기존 36-dim `tev1-neely`는 대체됨.
+  - `tev1-neely`는 이제 **nolen 17-key state**를 받음 (22-key full state는 사용 불가)
+  - `tev1-neely-nolen:latest`는 별칭으로 유지
 - **정확도**: held-out 3000에서 1.0000. 실데이터 분포가 변하면 재학습 필요
   (`train_mlp.py` 재실행).
 - **feature 일관성**: `train_mlp.py` / `serve_mlp.py` / `eval_mlp.py`의 feature layout

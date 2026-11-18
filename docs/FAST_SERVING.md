@@ -126,12 +126,28 @@ Neely SP 규칙은 차트 축(시간+가격) 재스케일에 불변 → feature�
 | ollama (LLM) | 36차원 LLM | 39% | 200ms |
 
 - `time_bars`(개수) 유지가 70% → 80% 정합을 냄 — **개수는 신호, 절대 가격은 노이즈**
-- **nolen LLM(ollama `tev1-neely-nolen`) vs nolen MLP**: 27.6% — LLM/MLP 결정 과정 분기
-  (LLM끼리 50%, MLP끼리 80% 정합). **MLP가 실데이터에서 더 일관성** 있음.
+- **nolen LLM vs nolen MLP**: **26.4% (23/87)** — ETH와 ^KS11(KOSPI 200)에서 **동일 분기**
+  - nolen-llm p50 186ms vs nolen-mlp p50 2.4ms (~77배)
+  - 분기 원인: **같은 nolen 17-key state를 다르게 읽는 것** (feature 매칭 vs JSON 의미적 추론)
+  - nolen-llm은 `:5`/`Invalid` 과다, nolen-mlp는 `:sL3`/`:c3` 과다
+- **nolen redesign 원리(시장 의존 length 제거)는 MLP/LLM 공통** — `tev1-neely`가 nolen로 승격됨
 - 프로덕션: `mlp/sp_mlp_nolen.pt` (systemd `sp-mlp.service`, 0.0.0.0:8095)
 
 **교훈**: shape-invariant feature는 (1) 시장 독립성, (2) 실데이터 정합, (3) 속도
 (2.3ms)를 동시에 확보. 절대 가격 length 제거가 핵심.
+
+### `tev1-neely` 승격 (2026-11-19)
+
+nolen LLM이 **새 `tev1-neely`**로 등록됨 (기존 36-dim `tev1-neely` 대체):
+
+```bash
+ollama rm tev1-neely:latest
+ollama cp tev1-neely-nolen:latest tev1-neely:latest
+```
+
+- `tev1-neely:latest`와 `tev1-neely-nolen:latest`가 **동일 모델 ID**
+- `tev1-neely`는 이제 **nolen 17-key state**를 받음 (22-key full state는 사용 불가)
+- `tev1-neely-nolen:latest`는 별칭으로 유지
 
 ## A/B 검증 (2026-11-18, held-out 3000 전체, 실서버)
 

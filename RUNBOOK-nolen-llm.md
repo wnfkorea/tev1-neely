@@ -69,7 +69,24 @@ ollama create tev1-neely-nolen -f Modelfile-tev1-neely-nolen
 
 - `Modelfile-tev1-neely-nolen`은 이미 준비됨 (FROM = Q8_0 decision gguf, num_ctx 4096, temp 0)
 - **FROM은 반드시 Q8_0 파일** (f16 intermediates는 `unsupported file type` 에러)
-- 기존 `tev1-neely:latest`(36-dim)는 **그대로 유지** — A/B 대조용
+
+### 3.1 nolen을 새 `tev1-neely`로 승격 (2026-11-19)
+
+nolen redesign 원리(시장 의존 `length` 제거)는 **MLP/LLM 공통**이므로,
+nolen LLM을 **새 `tev1-neely`**로 등록한다 (기존 36-dim `tev1-neely` 대체).
+
+```bash
+# 기존 36-dim tev1-neely 제거
+ollama rm tev1-neely:latest
+# nolen을 tev1-neely로 복사 (동일 ID, decision metadata 상속)
+ollama cp tev1-neely-nolen:latest tev1-neely:latest
+```
+
+- `tev1-neely:latest`와 `tev1-neely-nolen:latest`가 **동일 모델 ID**로 확인
+- `tev1-neely-nolen:latest`는 **그대로 유지** — 별칭으로 계속 사용 가능
+- **`tev1-neely`는 이제 nolen 17-key state를 받음** (22-key full state는 더 이상 사용 불가)
+- A/B 대조용 36-dim 모델은 `tev1-neely` 태그가 nolen으로 교체됨 —
+  36-dim 대조가 필요하면 별도 태그(예: `tev1-neely-legacy`)로 유지
 
 ## 4. A/B 비교 (nolen LLM vs nolen MLP)
 
@@ -89,3 +106,5 @@ cd ~/tev1-finetune
 - [ ] `ollama show tev1-neely-nolen` → architecture `qwen35`, context 4096
 - [ ] `curl http://127.0.0.1:11434/v1/systemone` smoke test (nolen state)
 - [ ] `ab_eth_nolen_llm.py` 실행 → nolen-llm vs nolen-mlp 정합률 확인
+- [ ] **`tev1-neely` 승격**: `ollama list`에서 `tev1-neely:latest`와 `tev1-neely-nolen:latest`가 동일 ID
+- [ ] **`tev1-neely` smoke test**: 17-key nolen state로 `/v1/systemone` 호출 → choice + confidence 반환
