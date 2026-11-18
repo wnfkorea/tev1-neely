@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""4-way A/B on real Upbit ETH data:
-  nolen-llm (ollama) = tev1-neely-nolen  [nolen LLM, the new Ollama decision model]
-  nolen-mlp (8097)   = sp_mlp_nolen.pt   [nolen MLP]
-  multi   (8095)     = sp_mlp_multi.pt   [production MLP]
-  ollama  (11434)    = tev1-neely:latest [old 36-dim LLM]
+"""4-way A/B on real Upbit ETH data — CORRECTED input per model.
 
-Main comparison: nolen-llm vs nolen-mlp (same nolen feature set, different learner).
+Each model receives the state it was TRAINED on:
+  nolen-llm (ollama tev1-neely-nolen)  -> 17-key NOLEN state (no length)
+  nolen-mlp (8097)                     -> 17-key NOLEN state
+  multi   (8095, now nolen)            -> 17-key NOLEN state
+  ollama  (11434, tev1-neely:latest)   -> 22-key FULL state (with length)
+
+Main comparison: nolen-llm vs nolen-mlp (both nolen state, 17 keys).
 """
 import json
 import time
@@ -34,12 +36,21 @@ SP_CRITERIA = {
     'Invalid_Neely_Rule_Violation': 'No valid Neely structure: the monowave sequence violates Neely rules (e.g. m1_retrace_ratio and m2_retrace_ratio both outside valid ranges, rule_of_equality_satisfied false where required, channel_break inconsistent, or overlapping/irregular retracements that fit no SP)',
 }
 
+# nolen feature set (17 keys, no length) — must match build_sp_systemone_nolen.py
+NOLEN_KEYS = [
+    "m0_dir", "m1_dir", "m2_dir", "m_1_dir", "m_2_dir",
+    "m0_change_pct", "m1_retrace_ratio", "m1_time_ratio", "m2_retrace_ratio",
+    "m0_time_bars", "m1_time_bars", "m2_time_bars", "m_1_time_bars", "m_2_time_bars",
+    "m0_overlap_m2", "rule_of_equality_satisfied", "channel_break",
+]
+
 
 def round3(v):
     return None if v is None else float(f"{v:.3f}")
 
 
-def build_feature(i, waves, ohlc):
+def build_full_state(i, waves, ohlc):
+    """22-key full state (with length) — for the old 36-dim LLM."""
     nw = waves[i]
     m0_dir = "up" if nw["endPrice"] > nw["startPrice"] else "down"
     m0_length = abs(nw["endPrice"] - nw["startPrice"])
@@ -94,6 +105,11 @@ def build_feature(i, waves, ohlc):
     }
 
 
+def reduce_to_nolen(full_state):
+    """Keep only the 17 nolen keys (drop the 5 *_length keys)."""
+    return {k: full_state.get(k) for k in NOLEN_KEYS}
+
+
 def call(url, state, model):
     payload = {"model": model, "state": state,
                "questions": {"sp": {"type": "choice", "instructions": INSTRUCTIONS,
@@ -116,22 +132,25 @@ def main():
 
     rows = []
     for i in range(n):
-        state = build_feature(i, waves, ohlc)
-        llm_c, llm_ms = call(*ENDPOINTS["nolen-llm"][:1], state, ENDPOINTS["nolen-llm"][1])
-        mlp_c, mlp_ms = call(*ENDPOINTS["nolen-mlp"][:1], state, ENDPOINTS["nolen-mlp"][1])
-        mul_c, mul_ms = call(*ENDPOINTS["multi"][:1], state, ENDPOINTS["multi"][1])
-        oll_c, oll_ms = call(*ENDPOINTS["ollama"][:1], state, ENDPOINTS["ollama"][1])
+        full = build_full_state(i, waves, ohlc)
+        nolen = reduce_to_nolen(full)
+        # nolen-llm, nolen-mlp, multi(8095=nolen) -> 17-key nolen state
+        # ollama (old 36-dim LLM) -> 22-key full state
+        llm_c, llm_ms = call(*ENDPOINTS["nolen-llm"][:1], nolen, ENDPOINTS["nolen-llm"][1])
+        mlp_c, mlp_ms = call(*ENDPOINTS["nolen-mlp"][:1], nolen, ENDPOINTS["nolen-mlp"][1])
+        mul_c, mul_ms = call(*ENDPOINTS["multi"][:1], nolen, ENDPOINTS["multi"][1])
+        oll_c, oll_ms = call(*ENDPOINTS["ollama"][:1], full, ENDPOINTS["ollama"][1])
         rows.append((i, waves[i]["sp"], llm_c, mlp_c, mul_c, oll_c, llm_ms, mlp_ms, mul_ms, oll_ms))
 
     total = len(rows)
     def agree(a, b):
         return sum(1 for r in rows if r[a] == r[b])
-    print("=== 4-WAY A/B (ETH 1D) — nolen LLM vs nolen MLP ===")
-    print(f"nolen-llm == nolen-mlp: {agree(2,3)}/{total} = {agree(2,3)/total:.4f}   <-- MAIN")
+    print("=== 4-WAY A/B (ETH 1D) — CORRECTED input per model ===")
+    print(f"nolen-llm == nolen-mlp: {agree(2,3)}/{total} = {agree(2,3)/total:.4f}   <-- MAIN (both 17-key nolen)")
     print(f"nolen-llm == multi:     {agree(2,4)}/{total} = {agree(2,4)/total:.4f}")
     print(f"nolen-mlp == multi:     {agree(3,4)}/{total} = {agree(3,4)/total:.4f}")
-    print(f"nolen-llm == ollama:    {agree(2,5)}/{total} = {agree(2,5)/total:.4f}")
-    print(f"nolen-mlp == ollama:    {agree(3,5)}/{total} = {agree(3,5)/total:.4f}")
+    print(f"nolen-llm == ollama:    {agree(2,5)}/{total} = {agree(2,5)/total:.4f}   (different state: 17 vs 22 key)")
+    print(f"nolen-mlp == ollama:    {agree(3,5)}/{total} = {agree(3,5)/total:.4f}   (different state: 17 vs 22 key)")
     all_same = sum(1 for r in rows if r[2] == r[3] == r[4] == r[5])
     print(f"all four agree:         {all_same}/{total}")
     llm_ms = sorted(r[6] for r in rows); mlp_ms = sorted(r[7] for r in rows); oll_ms = sorted(r[9] for r in rows)
