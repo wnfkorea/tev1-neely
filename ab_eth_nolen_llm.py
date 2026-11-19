@@ -2,20 +2,21 @@
 """4-way A/B on real Upbit ETH data — CORRECTED input per model.
 
 Each model receives the state it was TRAINED on:
-  nolen-llm (ollama tev1-neely-nolen)  -> 17-key NOLEN state (no length)
-  nolen-mlp (8097)                     -> 17-key NOLEN state
-  multi   (8095, now nolen)            -> 17-key NOLEN state
-  ollama  (11434, tev1-neely:latest)   -> 22-key FULL state (with length)
+  nolen-llm-v2 (ollama tev1-neely-nolen-v2) -> 17-key NOLEN state (no length)
+  nolen-mlp-v2 (8097)                        -> 17-key NOLEN state
+  multi    (8095, nolen v1)                 -> 17-key NOLEN state
+  ollama   (11434, tev1-neely:latest v1)    -> 22-key FULL state (with length)
 
-Main comparison: nolen-llm vs nolen-mlp (both nolen state, 17 keys).
+Main comparison: nolen-llm-v2 vs nolen-mlp-v2 (both nolen state, 17 keys,
+both trained on the combined v2 dataset of 54999 samples).
 """
 import json
 import time
 import urllib.request
 
 ENDPOINTS = {
-    "nolen-llm": ("http://127.0.0.1:11434/v1/systemone", "tev1-neely-nolen"),
-    "nolen-mlp": ("http://127.0.0.1:8097/v1/systemone", "sp-mlp-nolen"),
+    "nolen-llm": ("http://127.0.0.1:11434/v1/systemone", "tev1-neely-nolen-v2"),
+    "nolen-mlp": ("http://127.0.0.1:8097/v1/systemone", "sp-mlp-nolen-v2"),
     "multi":     ("http://127.0.0.1:8095/v1/systemone", "sp-mlp"),
     "ollama":    ("http://127.0.0.1:11434/v1/systemone", "tev1-neely:latest"),
 }

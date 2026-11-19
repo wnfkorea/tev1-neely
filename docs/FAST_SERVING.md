@@ -149,6 +149,34 @@ ollama cp tev1-neely-nolen:latest tev1-neely:latest
 - `tev1-neely`는 이제 **nolen 17-key state**를 받음 (22-key full state는 사용 불가)
 - `tev1-neely-nolen:latest`는 별칭으로 유지
 
+### gapfill v2 승격 (2026-11-19)
+
+`m1_retrace_ratio` 공백 3개([0.50,0.68], [3.67,5.45], [6.62,13.61])를 5,000 샘플로
+증강한 **v2**가 프로덕션으로 승격됨. LLM/MLP **동일 combined 54,999 데이터셋**으로 학습.
+
+```bash
+# MLP v2 (8095 프로덕션)
+./venv/bin/python mlp/train_nolen.py \
+  --train sp-systemone-nolen-train-v2.jsonl \
+  --heldout sp-systemone-nolen-heldout.jsonl \
+  --out mlp/sp_mlp_nolen_v2.pt --epochs 60
+sudo sed -i 's|sp_mlp_nolen\.pt|sp_mlp_nolen_v2.pt|' /etc/systemd/system/sp-mlp.service
+sudo systemctl daemon-reload && sudo systemctl restart sp-mlp
+
+# Ollama v2 (새 tev1-neely)
+ollama rm tev1-neely:latest
+ollama cp tev1-neely-nolen-v2:latest tev1-neely:latest
+```
+
+- `tev1-neely:latest` = `tev1-neely-nolen-v2:latest` (동일 ID `a8ff6497ed03`)
+- `tev1-neely-nolen:latest`(v1, `1fcc9f425de5`)는 v1 대조용으로 유지
+- **A/B (v2, 동일 데이터셋)**:
+  - ETH: nolen-llm-v2 == nolen-mlp-v2 **46/87 = 0.5287** (v1: 23/87 = 0.2644)
+  - ^KS11: **47/89 = 0.5281** (v1: 23/87 = 0.2644)
+  - gapfill 증강으로 LLM/MLP 일치율 **2배 상승**
+- 남은 ~47% 발산: LLM 의미론적 추론 vs MLP 결정적 패턴매칭 + 실제 시장 분포 차이
+- 프로덕션: `mlp/sp_mlp_nolen_v2.pt` (systemd `sp-mlp.service`, 0.0.0.0:8095)
+
 ## A/B 검증 (2026-11-18, held-out 3000 전체, 실서버)
 
 | 서버 | 정확도 | p50 | throughput |

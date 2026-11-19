@@ -88,6 +88,36 @@ ollama cp tev1-neely-nolen:latest tev1-neely:latest
 - A/B 대조용 36-dim 모델은 `tev1-neely` 태그가 nolen으로 교체됨 —
   36-dim 대조가 필요하면 별도 태그(예: `tev1-neely-legacy`)로 유지
 
+### 3.2 gapfill v2를 새 `tev1-neely`로 승격 (2026-11-19)
+
+`m1_retrace_ratio` 공백 3개([0.50,0.68], [3.67,5.45], [6.62,13.61])를
+5,000 샘플로 증강한 **v2**를 `tev1-neely`로 승격한다.
+
+```bash
+# v2 LLM (사용자 4090 학습 → Ollama 등록 완료: tev1-neely-nolen-v2)
+# v2 MLP (동일 combined 54,999 데이터셋으로 재학습)
+./venv/bin/python mlp/train_nolen.py \
+  --train sp-systemone-nolen-train-v2.jsonl \
+  --heldout sp-systemone-nolen-heldout.jsonl \
+  --out mlp/sp_mlp_nolen_v2.pt --epochs 60
+
+# 프로덕션 8095 → v2
+sudo sed -i 's|sp_mlp_nolen\.pt|sp_mlp_nolen_v2.pt|' /etc/systemd/system/sp-mlp.service
+sudo systemctl daemon-reload && sudo systemctl restart sp-mlp
+
+# Ollama: v2를 새 tev1-neely로 승격
+ollama rm tev1-neely:latest
+ollama cp tev1-neely-nolen-v2:latest tev1-neely:latest
+```
+
+- `tev1-neely:latest`와 `tev1-neely-nolen-v2:latest`가 **동일 모델 ID**(`a8ff6497ed03`)
+- `tev1-neely-nolen:latest`(v1, `1fcc9f425de5`)는 **그대로 유지** — v1 대조용
+- **A/B 결과**: nolen-llm-v2 == nolen-mlp-v2
+  - ETH: **46/87 = 0.5287** (v1: 23/87 = 0.2644)
+  - ^KS11: **47/89 = 0.5281** (v1: 23/87 = 0.2644)
+  - gapfill 증강으로 LLM/MLP 일치율 **2배 상승**
+- 남은 ~47% 발산: LLM 의미론적 추론 vs MLP 결정적 패턴매칭 + 실제 시장 분포 차이
+
 ## 4. A/B 비교 (nolen LLM vs nolen MLP)
 
 ```bash

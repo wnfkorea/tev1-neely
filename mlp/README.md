@@ -3,7 +3,21 @@
 Tev1 SP decision model(4B LLM)의 결정을 **CPU MLP**로 증류한 프로덕션 모델.
 Ollama / llama.cpp / GPU없이, feature 벡터 → SP 문자 분류를 **~1.6ms/req**로 처리한다.
 
-## nolen 모델 (프로덕션, 2026-11-19 승격)
+## nolen v2 모델 (프로덕션, 2026-11-19 gapfill 승격)
+
+`sp_mlp_nolen_v2.pt`는 **gapfill 증강 데이터셋**(combined 54,999 = 49,999 + 5,000)으로
+학습한 nolen 모델이다. `m1_retrace_ratio` 공백 3개([0.50,0.68], [3.67,5.45], [6.62,13.61])를
+채운 5,000 샘플을 추가했다.
+
+- **A/B (v2 LLM vs v2 MLP, 동일 데이터셋)**:
+  - ETH: **46/87 = 0.5287** (v1: 23/87 = 0.2644)
+  - ^KS11: **47/89 = 0.5281** (v1: 23/87 = 0.2644)
+  - gapfill 증강으로 LLM/MLP 일치율 **2배 상승**
+- held-out 9000/9000 = **1.0000** (10개 클래스 전부 recall 1.000)
+- 프로덕션: `mlp/sp_mlp_nolen_v2.pt` (systemd `sp-mlp.service`, 0.0.0.0:8095)
+- `sp_mlp_nolen.pt`(v1)는 A/B 대조용으로 유지
+
+## nolen 모델 (v1, 2026-11-19 승격)
 
 `sp_mlp_nolen.pt`는 **shape-invariant feature**로 재설계한 모델이다.
 설계 원리: **feature 벡터는 과제의 불변군과 일치해야 한다.**
@@ -82,9 +96,10 @@ mlp/
   eval_shape.py         shape 평가
   sp_mlp.pt             한국장 전용 모델 (레거시)
   sp_mlp_multi.pt       멀티마켓 모델 (레거시 프로덕션 — 36차원)
-  sp_mlp_nolen.pt       nolen 모델 (프로덕션 — 27차원, shape-invariant)
+  sp_mlp_nolen.pt       nolen v1 모델 (27차원, shape-invariant)
+  sp_mlp_nolen_v2.pt    nolen v2 모델 (프로덕션 — 27차원, gapfill 증강)
   sp_mlp_shape.pt       shape 모델 (테스트 — 16차원)
-  sp-mlp.service        systemd 유닛 (0.0.0.0:8095, sp_mlp_nolen.pt)
+  sp-mlp.service        systemd 유닛 (0.0.0.0:8095, sp_mlp_nolen_v2.pt)
   README.md             이 문서
 
 generate_sft_dataset_multi.py   멀티마켓 데이터 생성기 (시장 프로파일)
@@ -92,6 +107,9 @@ sp-systemone-multi-train.jsonl      50k 학습셋 (3시장 혼합)
 sp-systemone-multi-heldout-*.jsonl  시장별 3k held-out
 build_sp_systemone_nolen.py   nolen LLM 학습데이터 빌더 (state 17key 축소 + prompt 재렌더)
 sp-systemone-nolen-*.jsonl    nolen LLM 학습/평가 데이터 (49999/9000)
+generate_gapfill_dataset.py   gapfill 데이터 생성기 (m1_retrace_ratio 공백 3개)
+convert_gapfill_to_nolen.py   gapfill → nolen 포맷 변환 (prompt 재렌더)
+sp-systemone-nolen-train-v2.jsonl  combined v2 학습셋 (54999 = 49999 + 5000 gapfill)
 ab_eth_4way.py                4자 A/B (nolen/shape/multi/ollama, ETH 실데이터)
 ab_eth_nolen_llm.py           nolen LLM vs nolen MLP A/B (ETH 실데이터)
 ```
@@ -126,7 +144,7 @@ done
 
 ```bash
 cd ~/tev1-finetune
-./venv/bin/python mlp/serve_mlp.py --model mlp/sp_mlp_nolen.pt --host 0.0.0.0 --port 8095
+./venv/bin/python mlp/serve_mlp.py --model mlp/sp_mlp_nolen_v2.pt --host 0.0.0.0 --port 8095
 ```
 
 - `GET /health` → `{"status":"ok"}`
@@ -195,10 +213,12 @@ systemctl status sp-mlp
 
 - **모델 대체**: "tev1-neely를 쓰는" 게 아니라 **대체**하는 것이다. feature가 앱에서
   이미 생성되므로 연동은 쉽다.
-- **`tev1-neely` 승격 (2026-11-19)**: nolen LLM이 **새 `tev1-neely`**로 등록됨
-  (`ollama cp tev1-neely-nolen:latest tev1-neely:latest`). 기존 36-dim `tev1-neely`는 대체됨.
-  - `tev1-neely`는 이제 **nolen 17-key state**를 받음 (22-key full state는 사용 불가)
-  - `tev1-neely-nolen:latest`는 별칭으로 유지
+- **`tev1-neely` gapfill v2 승격 (2026-11-19)**: nolen v2 LLM이 **새 `tev1-neely`**로 등록됨
+  (`ollama cp tev1-neely-nolen-v2:latest tev1-neely:latest`). v1 nolen `tev1-neely`는 대체됨.
+  - `tev1-neely`는 **nolen 17-key state**를 받음 (22-key full state는 사용 불가)
+  - `tev1-neely-nolen-v2:latest` = `tev1-neely:latest` (동일 ID `a8ff6497ed03`)
+  - `tev1-neely-nolen:latest`(v1, `1fcc9f425de5`)는 v1 대조용으로 유지
+  - 프로덕션 MLP: `sp_mlp_nolen_v2.pt` (8095), v1 `sp_mlp_nolen.pt`는 대조용 유지
 - **정확도**: held-out 3000에서 1.0000. 실데이터 분포가 변하면 재학습 필요
   (`train_mlp.py` 재실행).
 - **feature 일관성**: `train_mlp.py` / `serve_mlp.py` / `eval_mlp.py`의 feature layout
