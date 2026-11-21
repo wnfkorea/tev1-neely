@@ -1,35 +1,63 @@
-# ─── Large / derived artifacts (see README "Large artifacts") ──────────────────
-# Trained models, quantized weights and training outputs are not committed.
-# GitHub rejects files > 100 MB; these are 4–8 GB each. Regenerate with the
-# pipeline in README.md / PIPELINE.md.
-merged-*/
+# ─── Production repository policy ─────────────────────────────────────────────
+# Git tracks only production MLP/LLM artifacts and their documentation.
+# Previous versions live on /media/wnf/Tamuz2T/106.Dev/tev1-finetune and are
+# exposed locally as ignored absolute-path symlinks.
+
+# ─── Large / derived artifacts ────────────────────────────────────────────────
+merged-*
 *.gguf
-output/
+output
+datasets
 
-# Rendered datasets (derived from sft-dataset-*.jsonl; the train split is > 100 MB)
+# Old rendered datasets and distribution snapshots
+sft-dataset-*.jsonl
 sp-systemone-*.jsonl
+sp-real-distribution.json
 
-# ─── Third-party / environment (clone & install locally, see README Setup) ─────
-llama.cpp/
+# ─── Previous-version scripts / docs (symlinks only) ──────────────────────────
+/*.py
+docs
+eval
+legacy
+patches
+session-*.md
+ACCURACY_ANALYSIS.md
+PIPELINE.md
+RUNBOOK-nolen-llm.md
+SP_REAL_DISTRIBUTION.md
+systemone-template.txt
+
+# Old Modelfiles (keep Modelfile-tev1-neely and Modelfile-tev1-0.8b-neely)
+Modelfile-tev1-neely-*
+
+# Previous MLP weights; keep only the production checkpoint
+mlp/*.pt
+mlp/*.bak.*
+!mlp/sp_mlp_nolen_v4_rc_primary.pt
+mlp/eval_*.py
+mlp/train_*.py
+
+# ─── Third-party / environment ───────────────────────────────────────────────
 venv/
+llama.cpp/
 .cache/
 .env
 .env.*
 
-# ─── Python ────────────────────────────────────────────────────────────────────
+# ─── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
 .ipynb_checkpoints/
 
-# ─── Logs / scratch ────────────────────────────────────────────────────────────
+# ─── Logs / scratch ───────────────────────────────────────────────────────────
 *.log
 nohup.out
 *.tmp
 *.swp
 
-# ─── OS / editor ───────────────────────────────────────────────────────────────
+# ─── OS / editor ──────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 .idea/
