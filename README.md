@@ -82,6 +82,8 @@ sudo systemctl restart sp-mlp.service
 
 - `DATASET_HISTORY.md` — dataset consolidation and dataset → LLM/MLP lineage
 - `tev1-08b-soup-lecture.md` — 0.8B SOUP fine-tuning and deployment walkthrough
+- `EVAL_MLP_VS_LLM_300.md` — heldout 300 inference comparison: production MLP vs `tev1-0.8b-neely:latest`
+- `eval_mlp_vs_llm_300.jsonl` — raw predictions/confidence/latency for the 300 samples
 - `mlp/README.md` — production MLP server details
 
 ## Reproducing the environment
