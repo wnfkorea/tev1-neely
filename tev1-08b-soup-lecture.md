@@ -1,5 +1,20 @@
 ### Tev1-0.8B를 Neely SP 데이터로 fine-tune하기 — RTX 4060 Ti + SOUP 실습 강의
 
+> **문서 기준 시점: 2026-11-21/22 (최초 bc3aug 실험)**
+> 이 강의는 0.8B SOUP 파인튜닝의 **첫 실행**을 재현한 기록입니다. 이후 2026-11-24에 학습 데이터를 v3로 개편해 재학습했고, 현재 production은 아래와 같습니다. 본문의 태그·수치는 **최초 실험 당시** 값입니다.
+>
+> | 항목 | 이 문서 (최초 실험) | 현재 production (2026-11-24) |
+> |---|---|---|
+> | Ollama 태그 | `tev1-sp-bc3aug:latest` | `tev1-0.8b-neely:latest` (구 태그 rename → v3 승격) |
+> | 모델 ID | (최초 bc3aug) | `67f7d742468b` |
+> | 학습 데이터 | 105,369행 (생성 D 4,000) | 106,769행 (생성 D 1,200 + 희귀 클래스 4,200) |
+> | SP heldout | 92.79% | **92.97%** |
+> | `b:c3` recall | 99.1% | **94.0%** (precision 86.5%) |
+> | `x:c3` / `:L3` / `:sL3` recall | 34.6% / 49.1% / 19.0% | **57.7% / 83.6% / 34.9%** |
+> | MLP 가중치 | md5 `69ceaf7e…` | md5 **`a8f1e6cc…`** (v3-hybrid) |
+>
+> 현재 상태의 근거: 저장소 `DATASET_HISTORY.md`, 아카이브 `docs/experiments/production-gate-v3.md`, `docs/experiments/mlp-v3-retrain-report.md`.
+
 #### 목차
 
 - 0. 이 강의에서 만드는 것
@@ -34,6 +49,8 @@
    - SP heldout  : 92.79%  (b:c3 recall 99.1%)
    - sentiment   : 92.5%   (base 93.0% 대비 -0.5%p)
 ```
+
+위는 **최초 실험 산출물**입니다. 현재 production 태그는 `tev1-0.8b-neely:latest`(v3)이며, heldout 92.97% / `b:c3` recall 94.0%입니다. 자세한 차이는 서두 표를 참조하세요.
 
 강의의 초점은 “정확도 몇 %”보다 **왜 이런 설정을 골랐는가, 어디서 막혔는가, 어떻게 풀었는가**에 있습니다.
 
@@ -334,6 +351,8 @@ overall = 10,442 / 11,253 = 92.79%
 mean confidence = 0.9528
 ```
 
+> 현재 production(v3)은 **10,462 / 11,253 = 92.97%**입니다.
+
 로그에 `invalid = 11253`가 찍히지만, 이는 스크립트의 라벨 목록을 `:5`, `b:c3` 같은 SP 키로 적어둔 탓입니다. 실제 예측은 모두 `A~I`였고 **진짜 invalid는 0건**입니다.
 
 ##### 7.3 클래스별 결과와 해석
@@ -357,9 +376,27 @@ mean confidence = 0.9528
 - 희소 클래스 `x:c3`, `:L3`, `:sL3`, `:s5`가 약합니다. 표본이 55~298건이라 통계도 불안정하지만, 데이터 불균형의 영향이 큽니다.
 - 가장 잦은 혼동은 `G → E`(:L5 → :F3, 156건), `F → C`(x:c3 → :c3, 106건)입니다.
 
+##### 7.3.1 현재 production(v3)과의 비교
+
+v3 승격 후 같은 11,253건 heldout에서 측정한 값입니다. 위 표는 최초 실험 기록입니다.
+
+| SP 기호 | 문자 | recall (최초) | recall (v3) | precision (v3) |
+|---|---|---:|---:|---:|
+| `:5` | A | 98.2% | 98.2% | 99.5% |
+| `:s5` | B | 66.7% | 69.7% | 78.4% |
+| `:c3` | C | 91.8% | 91.1% | 84.5% |
+| **`b:c3`** | **D** | **99.1%** | **94.0%** | **86.5%** |
+| `:F3` | E | 96.0% | 94.5% | 91.8% |
+| `x:c3` | F | 34.6% | **57.7%** | 61.9% |
+| `:L5` | G | 89.2% | 88.8% | 95.9% |
+| `:L3` | H | 49.1% | **83.6%** | 60.5% |
+| `:sL3` | I | 19.0% | **34.9%** | 55.0% |
+
+v3는 희귀 클래스 recall을 크게 끌어올렸고 macro-F1도 74.60% → 78.71%로 개선됐습니다. 반면 `b:c3` recall은 99.1% → 94.0%로 내려왔지만 게이트 하한(93%)은 통과합니다. 최초 실험의 `b:c3` 99.1%는 생성 D 4,000행에 따른 과보정 결과였습니다.
+
 ##### 7.4 함께 진행된 프로덕션 MLP 교체
 
-SP 판정은 LLM만으로 하지 않습니다. CPU MLP 분류기도 같은 데이터로 재학습해 프로덕션 경로를 교체했습니다.
+SP 판정은 LLM만으로 하지 않습니다. CPU MLP 분류기도 같은 데이터로 재학습해 프로덕션 경로를 교체했습니다. 아래는 **최초 실험 당시(2026-11-21)** 기록입니다.
 
 ```text
 train acc      : 0.9464
@@ -368,15 +405,23 @@ b:c3 recall    : 105 / 116 = 90.5%
 b:c3 precision : 105 / 144 = 72.9%
 
 교체 파일 : /home/wnf/tev1-finetune/mlp/sp_mlp_nolen_v4_rc_primary.pt
-md5       : 69ceaf7e18a74211a07a696575600cf3
+md5       : 69ceaf7e18a74211a07a696575600cf3  (현재 아카이브에 보존)
 백업      : sp_mlp_nolen_v4_rc_primary.pt.bak.20261121_171726
 ```
 
 서비스 재시작 후 `/health` ok, `:c3/b:c3` → `b:c3` (conf 0.9932), `:5` → `:5` (conf 1.0)를 확인했습니다.
 
+**현재 MLP (2026-11-24)**: LLM v3 승격에 맞춰 하이브리드 데이터(106,769행 + 누락 생성 D 2,800행 복원 = 109,569행, 생성 D 총 4,000행)로 재학습한 체크포인트로 교체됐습니다.
+
+```text
+heldout acc : 91.63%   macro-F1 : 78.05%  (기존 76.08%)
+md5         : a8f1e6cc9e805ee2313ac14d76ed3696
+v3 LLM 일치율 : 91.89%
+```
+
 ```bash
-# 롤백이 필요하면
-cp /home/wnf/tev1-finetune/mlp/sp_mlp_nolen_v4_rc_primary.pt.bak.20261121_171726 \
+# 직전 체크포인트로 롤백 (현재 기준)
+cp /media/wnf/Tamuz2T/106.Dev/tev1-finetune/models/mlp/sp_mlp_nolen_v4_rc_primary_bc3aug.pt \
    /home/wnf/tev1-finetune/mlp/sp_mlp_nolen_v4_rc_primary.pt
 sudo systemctl restart sp-mlp.service
 ```
@@ -487,6 +532,8 @@ ollama show tev1-sp-bc3aug:latest
 
 깨진 임시 모델 `tev1-sp-bc3aug-dec:latest`는 삭제했습니다.
 
+> **현재 태그**: 위 명령으로 만든 `tev1-sp-bc3aug:latest`는 2026-11-22에 `tev1-0.8b-neely:latest`로 rename됐고, 2026-11-24에 v3 체크포인트(`67f7d742468b`)로 승격됐습니다. 현재 GGUF는 아카이브의 `tev1-0.8b-neely-v3-q8_0-decision.gguf`이며, llama.cpp b11963 컨버터와 decision 메타데이터 주입 절차는 그대로 적용됩니다.
+
 #### 9. 부수 실험 — 뉴스 sentiment 유지도
 
 ##### 9.1 4B 사전 실험
@@ -515,6 +562,8 @@ ollama show tev1-sp-bc3aug:latest
 |---|---:|---:|---:|
 | `tev1:0.8b` (base) | 186/200 = **93.0%** | 0.898 / 0.970 / 0.933 | 0.816 |
 | `tev1-sp-bc3aug:latest` | 185/200 = **92.5%** | 0.890 / 0.970 / 0.928 | 0.969 |
+
+> 당시 태그명 `tev1-sp-bc3aug:latest`는 지금의 `tev1-0.8b-neely:latest`입니다. 이 수치는 **최초 bc3aug 모델** 기준이며, v3 승격 후 sentiment는 재측정하지 않았습니다.
 
 오류 분석:
 
@@ -594,6 +643,8 @@ capability 주입 → 텐서 이름 불일치 (500)
 | 프로덕션 MLP | `/home/wnf/tev1-finetune/mlp/sp_mlp_nolen_v4_rc_primary.pt` |
 | MLP 백업 | `...pt.bak.20261121_171726` |
 
+> **현재 production 산출물 (2026-11-24)**: 위 표는 최초 실험 경로입니다. 현재는 Ollama `tev1-0.8b-neely:latest` = v3 (model `67f7d742468b`), GGUF 아카이브 `tev1-0.8b-neely-v3-q8_0-decision.gguf` (md5 `ac2f9a843df1e604c36b21888c46e285`), MLP md5 `a8f1e6cc9e805ee2313ac14d76ed3696`입니다.
+
 #### 12. 재현 명령 전체 순서
 
 ```bash
@@ -641,6 +692,8 @@ MODELS=tev1-sp-bc3aug:latest OUT=/tmp/opencode/sentiment_finetuned08_eval.jsonl 
   /home/wnf/soup-venv/bin/python /tmp/opencode/eval_sentiment_generic.py
 ```
 
+> 위 명령은 최초 bc3aug 실험 재현용입니다. 현재 production(v3) 재현은 아카이브의 `configs/opencode-soup_v4_rc_08b_bc3aug_v3.yaml`과 `docs/experiments/bc3aug-v3-design.md`, `docs/experiments/production-gate-v3.md`를 참조하세요.
+
 #### 부록 A. 파일 지도
 
 ```text
@@ -669,6 +722,8 @@ MODELS=tev1-sp-bc3aug:latest OUT=/tmp/opencode/sentiment_finetuned08_eval.jsonl 
 └── llama.cpp-ollama/         # b11963 컨버터 (최종 사용)
 
 /home/wnf/tev1-finetune/mlp/
-├── sp_mlp_nolen_v4_rc_primary.pt
-└── sp_mlp_nolen_v4_rc_primary.pt.bak.20261121_171726
+├── sp_mlp_nolen_v4_rc_primary.pt                          # 현재: v3-hybrid, md5 a8f1e6cc…
+└── sp_mlp_nolen_v4_rc_primary.pt.bak.20261121_171726       # 직전 버전 (아카이브 심볼 링크)
 ```
+
+현재 production GGUF는 `/media/wnf/Tamuz2T/106.Dev/tev1-finetune/models/llm/gguf/tev1-0.8b-neely-v3-q8_0-decision.gguf`이며, 작업공간의 `tev1-0.8b-neely-q8_0-decision.gguf`가 이 파일을 가리킵니다.
