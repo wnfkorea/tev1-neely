@@ -1,3 +1,4 @@
-# Production SP decision model (0.8B, b:c3 augmented)
+# Production SP decision model (0.8B, V4 RC + v3 rare-class/hard-negative data)
 # Original tag tev1-sp-bc3aug:latest was renamed on 2026-11-22.
+# Promoted to v3 checkpoint (model 67f7d742468b) on 2026-11-24.
 FROM /home/wnf/tev1-finetune/tev1-0.8b-neely-q8_0-decision.gguf

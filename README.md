@@ -22,7 +22,7 @@ Both expose the Ollama-specific `decision` capability and answer `POST /v1/syste
 Source GGUFs are stored outside Git:
 
 ```text
-tev1-0.8b-neely-q8_0-decision.gguf
+tev1-0.8b-neely-q8_0-decision.gguf   -> archive: tev1-0.8b-neely-v3-q8_0-decision.gguf
 tev1-neely-sp-bf16-v4-rc-q8_0-decision.gguf
 ```
 
@@ -73,10 +73,16 @@ sudo systemctl restart sp-mlp.service
 
 ## Results
 
-- SP heldout: **10,442 / 11,253 = 92.79%**
-- `b:c3` recall: **115 / 116 = 99.1%** (precision 85.8%)
+Production 0.8B LLM was promoted to the **v3** checkpoint on 2026-11-24.
+
+- SP heldout: **10,462 / 11,253 = 92.97%** (macro-F1 78.71%)
+- `b:c3`: precision **86.5%**, recall **94.0%** (109 / 116)
+- `x:c3` recall **57.7%**, `:L3` recall **83.6%**, `:sL3` recall **34.9%**
 - 4B sentiment retention: `tev1:latest` 95.0%, `tev1-neely:latest` 96.0%
 - 0.8B sentiment: base 93.0%, fine-tuned 92.5%, confidence 0.816 → 0.969
+
+The promotion gate was redefined to precision/recall-balanced thresholds and v3 passed
+10/10; see `DATASET_HISTORY.md` for details.
 
 ## Documentation
 

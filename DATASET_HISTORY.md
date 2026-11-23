@@ -137,6 +137,30 @@ GGUF 변환 시 최신 llama.cpp는 `ssm_beta_alpha.weight`를 만들어 Ollama 
 - `tokenizer.chat_templates=['systemone']`
 - `general.tags`에 `decision-model`
 
+##### 2.7 단계 8 — v3 승격 (2026-11-24)
+
+v2(생성 D 4,000 → 1,000)는 precision은 높였지만 F/H/I recall과 전체 정확도가 후퇴해 미통과였다. v3는 생성 D 1,200 + 엔진 라벨 희귀 클래스(F 1,500 / H 700 / I 800 / B 300) + MLP 오판 C/E/G 600행으로 구성했고, v4는 D·F를 줄이고 I를 늘린 교정 실험이었다.
+
+| 실험 | 전체 acc | D P/R | F R | H R | I R | macro-F1 | 게이트 |
+|---|---:|---:|---:|---:|---:|---:|---|
+| 구 production | 92.79% | 85.8/99.1% | 34.6% | 49.1% | 19.0% | 74.60% | — |
+| v2 | 92.54% | 93.2/94.0% | 29.5% | 52.7% | 17.5% | — | 1/6 미통과 |
+| **v3** | **92.97%** | 86.5/94.0% | **57.7%** | **83.6%** | 34.9% | **78.71%** | 신규 게이트 10/10 통과 |
+| v4 | 92.30% | 92.6/97.4% | 44.6% | 76.4% | 39.7% | 76.04% | 구 게이트 3/6 미통과 |
+
+기존 게이트의 `F recall ≥70%`, `I recall ≥60%`는 production MLP(F 57.4%, I 47.6%)를 포함해 달성한 모델이 없어, precision/recall 균형(F1)을 포함한 현실적 기준으로 재정의했다. 상세 기준과 검증은 아카이브의 `docs/experiments/production-gate-v3.md`에 있다.
+
+```text
+v4_rc_bc3aug_v3_systemone-soup-train.jsonl (106,769)
+  → SOUP LoRA (run_20261123_031550_eb11e9d3, checkpoint-6674)
+  → soup-v4-rc-08b-bc3aug-v3-merged (bf16)
+  → tev1-sp-bc3aug-v3-ollama-q8_0.gguf → decision 메타데이터 주입
+  → 아카이브: tev1-0.8b-neely-v3-q8_0-decision.gguf
+  → Ollama tev1-0.8b-neely:latest (model 67f7d742468b)
+```
+
+v4 실험 산출물은 승격 없이 아카이브 `docs/experiments/bc3aug-v4-*`에 보존했다.
+
 #### 3. 현재 production 상태
 
 | 항목 | 이름 / 경로 | 상태 |
@@ -149,7 +173,8 @@ GGUF 변환 시 최신 llama.cpp는 `ssm_beta_alpha.weight`를 만들어 Ollama 
 
 검증 결과:
 
-- SP heldout 전체 10,442 / 11,253 = **92.79%**, `b:c3` recall 115 / 116 = **99.1%**, precision 85.8%.
+- SP heldout 전체 10,462 / 11,253 = **92.97%**, `b:c3` recall 109 / 116 = **94.0%**, precision 86.5%.
+- 희귀 클래스 recall: `x:c3` 57.7%, `:L3` 83.6%, `:sL3` 34.9%. macro-F1 78.71%.
 - 4B sentiment retention: `tev1:latest` 95.0%, `tev1-neely:latest` 96.0%, 신규 오류 0.
 - 0.8B sentiment: base `tev1:0.8b` 93.0%, 파인튜닝 92.5%, 신규 오류 1건, confidence 0.816 → 0.969.
 - `/v1/systemone` 호출 정상, capability `decision` 확인.

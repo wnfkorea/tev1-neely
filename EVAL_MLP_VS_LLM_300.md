@@ -3,6 +3,8 @@
 비교 시점: 2026-11-22  
 대상: production CPU MLP(`sp_mlp_nolen_v4_rc_primary.pt`)와 production Ollama decision 모델(`tev1-0.8b-neely:latest`)
 
+> 참고: 이 비교는 2026-11-24에 v3로 승격되기 **이전**의 0.8B LLM으로 측정한 기록이다. 현재 production LLM의 성능은 `README.md`와 `DATASET_HISTORY.md`의 v3 수치를 참조할 것.
+
 #### 1. 비교 방법
 
 | 항목 | 내용 |
