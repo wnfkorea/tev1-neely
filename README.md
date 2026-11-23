@@ -52,7 +52,7 @@ The CPU MLP is a distilled SP classifier and a drop-in replacement for the Ollam
 
 | Path | Purpose |
 |---|---|
-| `mlp/sp_mlp_nolen_v4_rc_primary.pt` | production checkpoint (md5 `69ceaf7e18a74211a07a696575600cf3`) |
+| `mlp/sp_mlp_nolen_v4_rc_primary.pt` | production checkpoint (v3-hybrid, md5 `a8f1e6cc9e805ee2313ac14d76ed3696`) |
 | `mlp/serve_mlp.py` | HTTP server on port 8095 |
 | `mlp/v4_features.py` | GUI-equivalent V4 feature extraction |
 | `mlp/vendor/` | bundled feature engine |
@@ -66,7 +66,7 @@ curl http://127.0.0.1:8095/health
 Switching back to the previous checkpoint (archived, symlinked locally):
 
 ```bash
-cp mlp/sp_mlp_nolen_v4_rc_primary.pt.bak.20261121_171726 \
+cp /media/wnf/Tamuz2T/106.Dev/tev1-finetune/models/mlp/sp_mlp_nolen_v4_rc_primary_bc3aug.pt \
    mlp/sp_mlp_nolen_v4_rc_primary.pt
 sudo systemctl restart sp-mlp.service
 ```
@@ -78,6 +78,10 @@ Production 0.8B LLM was promoted to the **v3** checkpoint on 2026-11-24.
 - SP heldout: **10,462 / 11,253 = 92.97%** (macro-F1 78.71%)
 - `b:c3`: precision **86.5%**, recall **94.0%** (109 / 116)
 - `x:c3` recall **57.7%**, `:L3` recall **83.6%**, `:sL3` recall **34.9%**
+
+The CPU MLP was retrained the same day on the v3 data with generated `b:c3`
+restored (109,569 rows) and promoted by explicit trade-off approval: heldout
+91.63%, macro-F1 78.05% (was 76.08%), 91.89% agreement with the v3 LLM.
 - 4B sentiment retention: `tev1:latest` 95.0%, `tev1-neely:latest` 96.0%
 - 0.8B sentiment: base 93.0%, fine-tuned 92.5%, confidence 0.816 → 0.969
 

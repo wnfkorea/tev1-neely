@@ -161,6 +161,20 @@ v4_rc_bc3aug_v3_systemone-soup-train.jsonl (106,769)
 
 v4 실험 산출물은 승격 없이 아카이브 `docs/experiments/bc3aug-v4-*`에 보존했다.
 
+##### 2.8 단계 9 — MLP v3 재학습·승격 (2026-11-24)
+
+LLM이 v3로 승격되면서 MLP의 학습 분포(구 105,369행, 생성 D 4,000)와 어긋났다. v3 LLM 학습셋의 106,769개 state를 `{"state","sp"}`로 변환해 순수 v3 MLP를 학습했으나, 생성 D 감소로 D recall이 90.5% → 78.4%로 후퇴했다(게이트 3/10). 누락된 생성 D 2,800행을 복원한 하이브리드 109,569행으로 재학습한 결과 D recall 87.1%, macro-F1 78.05%(구 76.08%), v3 LLM 일치율 91.89%를 기록했다.
+
+LLM용 10개 게이트 기준으로는 4/10이었으나, 사용자가 macro-F1 개선과 LLM 정합성을 근거로 명시적 트레이드오프 수용을 승인해 하이브리드 체크포인트를 production으로 교체했다. 자세한 비교는 아카이브 `docs/experiments/mlp-v3-retrain-report.md`에 있다.
+
+```text
+v4_rc_bc3aug_v3_systemone-soup-train.jsonl → v4_rc_bc3aug_v3_mlp-train.jsonl (106,769)
+  + 복원 생성 D 2,800 → v4_rc_bc3aug_v3hybrid_mlp-train.jsonl (109,569)
+  → mlp-train_v4_fast.py (100 epochs, batch 256, lr 3e-4, CPU)
+  → 아카이브: sp_mlp_nolen_v4_rc_v3hybrid.pt
+  → mlp/sp_mlp_nolen_v4_rc_primary.pt 교체 + sp-mlp.service 재시작
+```
+
 #### 3. 현재 production 상태
 
 | 항목 | 이름 / 경로 | 상태 |
@@ -168,13 +182,14 @@ v4 실험 산출물은 승격 없이 아카이브 `docs/experiments/bc3aug-v4-*`
 | Ollama LLM | `tev1-0.8b-neely:latest` | `qwen35`, `Q8_0`, Capabilities `decision` |
 | LLM GGUF | `~/tev1-finetune/tev1-0.8b-neely-q8_0-decision.gguf` | 아카이브 실파일의 심볼 링크 |
 | Modelfile | `~/tev1-finetune/Modelfile-tev1-0.8b-neely` | 실파일 |
-| MLP | `~/tev1-finetune/mlp/sp_mlp_nolen_v4_rc_primary.pt` | 실파일, md5 `69ceaf7e18a74211a07a696575600cf3` |
+| MLP | `~/tev1-finetune/mlp/sp_mlp_nolen_v4_rc_primary.pt` | 실파일, v3-hybrid md5 `a8f1e6cc9e805ee2313ac14d76ed3696` |
 | MLP 서비스 | `mlp/sp-mlp.service` (8095) | production MLP 경로 참조 |
 
 검증 결과:
 
 - SP heldout 전체 10,462 / 11,253 = **92.97%**, `b:c3` recall 109 / 116 = **94.0%**, precision 86.5%.
 - 희귀 클래스 recall: `x:c3` 57.7%, `:L3` 83.6%, `:sL3` 34.9%. macro-F1 78.71%.
+- MLP(v3-hybrid): SP heldout **91.63%**, macro-F1 **78.05%**. recall `x:c3` 67.1%, `:L3` 70.9%, `:sL3` 69.8%, `b:c3` 87.1%. LLM과 예측 일치율 91.89%.
 - 4B sentiment retention: `tev1:latest` 95.0%, `tev1-neely:latest` 96.0%, 신규 오류 0.
 - 0.8B sentiment: base `tev1:0.8b` 93.0%, 파인튜닝 92.5%, 신규 오류 1건, confidence 0.816 → 0.969.
 - `/v1/systemone` 호출 정상, capability `decision` 확인.

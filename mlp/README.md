@@ -7,7 +7,7 @@ training scripts are archived on Tamuz2T and exposed as ignored symlinks.
 
 | File | Purpose |
 |---|---|
-| `sp_mlp_nolen_v4_rc_primary.pt` | production checkpoint, md5 `69ceaf7e18a74211a07a696575600cf3` |
+| `sp_mlp_nolen_v4_rc_primary.pt` | production checkpoint (v3-hybrid), md5 `a8f1e6cc9e805ee2313ac14d76ed3696` |
 | `serve_mlp.py` | `/v1/systemone` drop-in HTTP server |
 | `v4_features.py` | V4 wave/feature extraction matching the GUI pipeline |
 | `vendor/` | bundled feature engine |
@@ -32,9 +32,11 @@ curl http://127.0.0.1:8095/health
 ## Rollback
 
 ```bash
-cp mlp/sp_mlp_nolen_v4_rc_primary.pt.bak.20261121_171726 \
+cp /media/wnf/Tamuz2T/106.Dev/tev1-finetune/models/mlp/sp_mlp_nolen_v4_rc_primary_bc3aug.pt \
    mlp/sp_mlp_nolen_v4_rc_primary.pt
 sudo systemctl restart sp-mlp.service
 ```
 
-The backup is an ignored symlink into the archive.
+The previous (pre-v3) checkpoint is preserved in the archive. The current
+checkpoint was retrained on the v3 rare-class data plus all 4,000 generated
+`b:c3` rows; see `DATASET_HISTORY.md` for metrics.
